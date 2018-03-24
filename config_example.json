@@ -1,0 +1,17 @@
+{
+	'Executables': [
+		{
+			'EngineName': 'Godot',
+			'Path': 'Godot/HowestMarkGodot.exe',
+			'CommandlineArgs': '',
+			'OutputMethod': 'stdout'
+		},
+		{
+			'EngineName': 'Unity',
+			'Path': 'Unity/HowestMarkUnity.exe',
+			'CommandlineArgs': '-logFile out.txt',
+			'OutputMethod': 'file=out.txt'
+		}
+	],
+	'Tests': ['BallMark', 'BallMark3D', 'Stress2D']
+}

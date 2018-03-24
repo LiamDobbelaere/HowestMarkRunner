@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -18,6 +19,9 @@ namespace HowestMarkRunner
 
         static void Main(string[] args)
         {
+            Config config = JsonConvert.DeserializeObject<Config>(File.ReadAllText("config.json"));
+
+
             Console.ForegroundColor = COLOR_BLUE;
             Console.Write("Howest");
             Console.ForegroundColor = COLOR_PINK;
@@ -38,17 +42,17 @@ namespace HowestMarkRunner
             Console.ForegroundColor = Color.White;
 
             bool erroredExecutables = false;
-            foreach (string executable in Properties.Settings.Default.Executables)
+            foreach (ExecutableConfig executable in config.Executables)
             {
-                if (!File.Exists(executable))
+                if (!File.Exists(executable.Path))
                 {
-                    Console.WriteLine(executable + " (not found!)");
+                    Console.WriteLine(executable.Path + " (not found!)");
 
                     erroredExecutables = true;
                 }
                 else
                 {
-                    Console.WriteLine(executable);
+                    Console.WriteLine(executable.Path);
                 }
             }
 
@@ -62,40 +66,80 @@ namespace HowestMarkRunner
             Console.ForegroundColor = COLOR_YELLOW;
             Console.WriteLine("Tests:");
             Console.ForegroundColor = Color.White;
-            foreach (string test in Properties.Settings.Default.Tests)
+            foreach (string test in config.Tests)
             {
                 Console.WriteLine(test);
             }
 
             Console.ForegroundColor = COLOR_YELLOW;
-            Console.WriteLine("Executing automated tests...");
-            //while (Console.ReadKey(true).Key != ConsoleKey.Enter) ;
-           
-            foreach (string executable in Properties.Settings.Default.Executables)
+            Console.WriteLine("Executing automated tests:");
+            var currentPos = Console.CursorTop;
+
+            Console.ForegroundColor = Color.Gray;
+            foreach (ExecutableConfig executable in config.Executables)
             {
-                var engineName = executable.Split('\\')[0];
+                foreach (string test in config.Tests)
+                {
+                    Console.WriteLine(executable.Path + " - " + test);
+                }
+            }
+
+            Console.CursorTop = currentPos;
+            Console.ForegroundColor = Color.White;
+            foreach (ExecutableConfig executable in config.Executables)
+            {
+                var engineName = executable.EngineName;
 
                 Console.ForegroundColor = Color.White;
 
-                foreach (string test in Properties.Settings.Default.Tests)
+                foreach (string test in config.Tests)
                 {
-                    Console.WriteLine(executable + " - " + test);
-
                     using (var runningTest = new Process())
                     {
                         var outputText = new StringBuilder();
+                        var useStdout = executable.OutputMethod == "stdout";
 
-                        runningTest.StartInfo.FileName = Path.Combine(Environment.CurrentDirectory, executable);
-                        runningTest.StartInfo.Arguments = "-logFile -test=" + test;
-                        runningTest.StartInfo.RedirectStandardOutput = true;
-                        runningTest.StartInfo.UseShellExecute = false;
-                        runningTest.OutputDataReceived += (_, dataEvent) => outputText.Append(dataEvent.Data);
+                        runningTest.StartInfo.FileName = Path.Combine(Environment.CurrentDirectory, executable.Path);
+                        runningTest.StartInfo.Arguments = executable.CommandlineArgs + (executable.CommandlineArgs == "" ? "" : " ") + "-test=" + test;
+                        runningTest.StartInfo.RedirectStandardOutput = useStdout;
+                        runningTest.StartInfo.UseShellExecute = !useStdout;
+
+                        if (useStdout)
+                            runningTest.OutputDataReceived += (_, dataEvent) =>
+                            {
+                                outputText.Append(dataEvent.Data + Environment.NewLine);
+                            };
+
+                        //var testInfo = executable.Path + " " + runningTest.StartInfo.Arguments + ", read data from: " + executable.OutputMethod;
+                        Console.WriteLine(executable.Path + " - " + test);
+                        
                         runningTest.Start();
                         runningTest.PriorityClass = ProcessPriorityClass.RealTime;
-                        runningTest.BeginOutputReadLine();
+                        if (useStdout) runningTest.BeginOutputReadLine();
                         runningTest.WaitForExit();
 
-                        File.AppendAllText(engineName + "_" + test + ".csv", outputText.ToString());
+                        if (!useStdout)
+                        {
+                            var outputPath = executable.OutputMethod.Split('=')[1];
+
+                            outputText.Append(File.ReadAllText(outputPath));
+                        }
+
+                        string finalOutput = ToBenchmarkFormat(outputText.ToString());
+                        string outputFile = engineName + "_" + test + ".csv";
+
+                        if (File.Exists(outputFile)) File.Delete(outputFile);
+                        File.AppendAllText(outputFile, finalOutput);
+
+                        string[] splitResults = finalOutput.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+                        var lastResult = splitResults[splitResults.Length - 2];
+
+                        ClearLastLine();
+                        Console.ForegroundColor = COLOR_BLUE;
+                        Console.Write(executable.Path + " - " + test + " - ");
+                        Console.ForegroundColor = COLOR_PINK;
+                        Console.WriteLine(lastResult);
+                        Console.ForegroundColor = Color.White;
                     }
                 }
             }
@@ -109,6 +153,34 @@ namespace HowestMarkRunner
             app.Start();
             app.PriorityClass = ProcessPriorityClass.RealTime;
             */
+        }
+
+        static public void ClearLastLine()
+        {
+            Console.SetCursorPosition(0, Console.CursorTop - 1);
+            Console.Write(new string(' ', Console.BufferWidth));
+            Console.SetCursorPosition(0, Console.CursorTop - 1);
+        }
+
+        static private string ToBenchmarkFormat(string input)
+        {
+            StringBuilder output = new StringBuilder();
+
+            using (StringReader reader = new StringReader(input))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (line.StartsWith("bench "))
+                    {
+                        line = line.Substring(6);
+                        line = line.Trim('\r', '\n');
+                        output.Append(line + Environment.NewLine);
+                    }
+                }
+            }
+
+            return output.ToString();
         }
 
         static private void PressToExit()
