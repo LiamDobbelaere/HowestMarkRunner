@@ -76,9 +76,9 @@ namespace HowestMarkRunner
             var currentPos = Console.CursorTop;
 
             Console.ForegroundColor = Color.Gray;
-            foreach (ExecutableConfig executable in config.Executables)
+            foreach (string test in config.Tests)
             {
-                foreach (string test in config.Tests)
+                foreach (ExecutableConfig executable in config.Executables)
                 {
                     Console.WriteLine(executable.Path + " - " + test);
                 }
@@ -86,14 +86,13 @@ namespace HowestMarkRunner
 
             Console.CursorTop = currentPos;
             Console.ForegroundColor = Color.White;
-            foreach (ExecutableConfig executable in config.Executables)
+            foreach (string test in config.Tests)
             {
-                var engineName = executable.EngineName;
-
-                Console.ForegroundColor = Color.White;
-
-                foreach (string test in config.Tests)
+                foreach (ExecutableConfig executable in config.Executables)
                 {
+                    var engineName = executable.EngineName;
+                    Console.ForegroundColor = Color.White;
+
                     using (var runningTest = new Process())
                     {
                         var outputText = new StringBuilder();
