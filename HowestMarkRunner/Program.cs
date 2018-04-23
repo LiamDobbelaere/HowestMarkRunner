@@ -106,6 +106,10 @@ namespace HowestMarkRunner
                         if (useStdout)
                             runningTest.OutputDataReceived += (_, dataEvent) =>
                             {
+                                if (dataEvent.Data != null) {
+                                    if (dataEvent.Data.StartsWith("suicide")) runningTest.Kill();
+                                }
+
                                 outputText.Append(dataEvent.Data + Environment.NewLine);
                             };
 
